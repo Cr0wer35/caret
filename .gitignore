@@ -6,8 +6,8 @@
 # Xcode
 build/
 DerivedData/
-*.xcodeproj/xcuserdata/
-*.xcworkspace/xcuserdata/
+**/xcuserdata/
+**/xcshareddata/WorkspaceSettings.xcsettings
 *.xcuserstate
 *.xcscmblueprint
 *.xccheckout
