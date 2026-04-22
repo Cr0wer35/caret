@@ -12,8 +12,8 @@ struct OnboardingView: View {
 
             Text(
                 "Caret needs the macOS Accessibility API to read the text you're typing "
-                + "and insert corrections. No data leaves your Mac without going through "
-                + "your API key."
+                    + "and insert corrections. No data leaves your Mac without going through "
+                    + "your API key."
             )
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
