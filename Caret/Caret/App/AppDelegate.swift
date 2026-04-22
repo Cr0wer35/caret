@@ -5,7 +5,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let permissions = PermissionsMonitor()
     let textCapture = TextCapture()
     let providerStore = ProviderStore()
-    lazy var inputCoordinator = InputCoordinator(textCapture: textCapture)
+    lazy var inputCoordinator = InputCoordinator(
+        textCapture: textCapture,
+        providerStore: providerStore
+    )
     lazy var debugOverlay = DebugOverlayWindowController(coordinator: inputCoordinator)
     lazy var settingsController = SettingsWindowController(store: providerStore)
     private var onboardingController: OnboardingWindowController?
