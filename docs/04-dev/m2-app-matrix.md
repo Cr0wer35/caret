@@ -29,9 +29,9 @@ Running log of how the Accessibility capture pipeline behaves per host app. Upda
 
 1. Build + run Caret from Xcode.
 2. Grant Accessibility permission (once, if not already).
-3. In the target app, focus a text field and type a few characters.
-4. Click the Caret menu bar icon → `Capture focused text` (or ⌥⌘C with the menu open).
-5. Open Console.app, filter `category:capture`, read the emitted line.
+3. Menu bar icon → `Toggle debug overlay` (⌥⌘D) — floating window shows the live `FocusedContext` stream.
+4. In the target app, focus a text field and type — the overlay updates on every `keyUp`.
+5. (Optional) Open Console.app, filter `category:capture`, to scroll back through all emitted events.
 
 ## What "green" means per tier
 
