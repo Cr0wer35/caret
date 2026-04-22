@@ -9,6 +9,7 @@ import os
 @MainActor
 final class InputCoordinator: ObservableObject {
     @Published private(set) var lastContext: FocusedContext?
+    @Published private(set) var lastBlocked: String?
     private let textCapture: TextCapture
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -62,14 +63,25 @@ final class InputCoordinator: ObservableObject {
     fileprivate func handleKeyUp() {
         Task { @MainActor [weak self] in
             guard let self else { return }
-            guard let ctx = await self.textCapture.focusedContext() else { return }
-            self.lastContext = ctx
-            let msg = """
-                bundle=\(ctx.bundleID ?? "nil") \
-                cursor=\(ctx.cursorRange.location)+\(ctx.cursorRange.length) \
-                text=\(ctx.text.prefix(80))
-                """
-            Log.capture.notice("\(msg, privacy: .public)")
+            let outcome = await self.textCapture.capture()
+            switch outcome {
+            case .captured(let ctx):
+                self.lastContext = ctx
+                self.lastBlocked = nil
+                let msg = """
+                    bundle=\(ctx.bundleID ?? "nil") \
+                    cursor=\(ctx.cursorRange.location)+\(ctx.cursorRange.length) \
+                    text=\(ctx.text.prefix(80))
+                    """
+                Log.capture.notice("\(msg, privacy: .public)")
+            case .blocked(let bundleID):
+                self.lastContext = nil
+                self.lastBlocked = bundleID
+                Log.capture.notice("blocked \(bundleID, privacy: .public)")
+            case .unavailable:
+                // Keep previous state — no focus / secure field / AX miss.
+                break
+            }
         }
     }
 }
