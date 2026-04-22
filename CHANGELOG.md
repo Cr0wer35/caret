@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Trigger engine (M4): `Pipeline/TriggerEngine.swift` — off-main actor that debounces keystroke-driven captures into a small stream of "ready to correct" fires. Rule: `(newWords ≥ 3 OR text ends in ".!?") AND idle ≥ 400ms`. Resets state on focus change across apps. `InputCoordinator` feeds every `.captured` outcome to the engine and publishes `lastFire: TriggerFire?`; per-keyup logs dropped to `.debug`, fire events stay at `.notice`. Debug overlay gains a "Last fire" row showing reason + timestamp.
+
 - Privacy denylist (M3): `Shell/Denylist.swift` holds a hardcoded `Sendable` set of bundle IDs (password managers, terminals) checked before any AX text read. `TextCapture.capture()` now returns a `CaptureOutcome` enum (`.captured` / `.blocked` / `.unavailable`); `InputCoordinator` exposes `lastBlocked` alongside `lastContext`, and `DebugOverlay` renders a red "Blocked" state when a denylisted app is focused. Renamed from "blacklist" to satisfy SwiftLint's inclusive-language rule without disabling it.
 
 - Input-driven text capture (M2b): `Pipeline/InputCoordinator.swift` owns a session-level `CGEventTap` (`.defaultTap`) listening on `keyUp`; each keystroke triggers a `TextCapture` read, publishes the latest `FocusedContext` via `@Published`, and logs it. `UI/DebugOverlay.swift` + `UI/DebugOverlayWindowController.swift` render a floating utility window that streams the current context live without stealing focus. A menu entry "Toggle debug overlay" (`⌥⌘D`) shows/hides it. The M2a one-shot menu action is removed (superseded).

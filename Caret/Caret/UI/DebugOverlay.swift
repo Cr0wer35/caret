@@ -40,10 +40,25 @@ struct DebugOverlay: View {
                 Text("Waiting for input…")
                     .foregroundStyle(.secondary)
             }
+
+            if let fire = coordinator.lastFire {
+                Divider()
+                Text("Last fire")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                row("reason", fire.reason.rawValue)
+                row("at", Self.fireTimeFormatter.string(from: fire.at))
+            }
         }
         .padding(12)
         .frame(width: 360)
     }
+
+    private static let fireTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        return formatter
+    }()
 
     private func row(_ label: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {

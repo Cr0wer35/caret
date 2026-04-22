@@ -10,9 +10,22 @@ import os
 final class InputCoordinator: ObservableObject {
     @Published private(set) var lastContext: FocusedContext?
     @Published private(set) var lastBlocked: String?
+    @Published private(set) var lastFire: TriggerFire?
     private let textCapture: TextCapture
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+
+    private lazy var triggerEngine = TriggerEngine { [weak self] fire in
+        Task { @MainActor in
+            guard let self else { return }
+            self.lastFire = fire
+            let reason = fire.reason.rawValue
+            let bundle = fire.context.bundleID ?? "nil"
+            Log.capture.notice(
+                "trigger fire reason=\(reason, privacy: .public) bundle=\(bundle, privacy: .public)"
+            )
+        }
+    }
 
     init(textCapture: TextCapture) {
         self.textCapture = textCapture
@@ -68,12 +81,13 @@ final class InputCoordinator: ObservableObject {
             case .captured(let ctx):
                 self.lastContext = ctx
                 self.lastBlocked = nil
+                await self.triggerEngine.evaluate(ctx)
                 let msg = """
                     bundle=\(ctx.bundleID ?? "nil") \
                     cursor=\(ctx.cursorRange.location)+\(ctx.cursorRange.length) \
                     text=\(ctx.text.prefix(80))
                     """
-                Log.capture.notice("\(msg, privacy: .public)")
+                Log.capture.debug("\(msg, privacy: .public)")
             case .blocked(let bundleID):
                 self.lastContext = nil
                 self.lastBlocked = bundleID
