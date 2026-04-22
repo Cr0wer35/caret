@@ -10,7 +10,8 @@ struct CaretApp: App {
             MenuContent(
                 permissions: appDelegate.permissions,
                 onReopenOnboarding: { appDelegate.reopenOnboarding() },
-                onToggleDebugOverlay: { appDelegate.toggleDebugOverlay() }
+                onToggleDebugOverlay: { appDelegate.toggleDebugOverlay() },
+                onShowSettings: { appDelegate.showSettings() }
             )
         } label: {
             MenuBarLabel(permissions: appDelegate.permissions)
@@ -38,6 +39,7 @@ private struct MenuContent: View {
     @ObservedObject var permissions: PermissionsMonitor
     let onReopenOnboarding: () -> Void
     let onToggleDebugOverlay: () -> Void
+    let onShowSettings: () -> Void
 
     var body: some View {
         Text("Caret — v0.1.0-dev")
@@ -54,6 +56,11 @@ private struct MenuContent: View {
         case .denied:
             Button("Enable Accessibility…", action: onReopenOnboarding)
         }
+
+        Divider()
+
+        Button("Settings…", action: onShowSettings)
+            .keyboardShortcut(",", modifiers: [.command])
 
         Divider()
 
