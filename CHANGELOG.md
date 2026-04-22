@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Accessibility permission flow (M1): onboarding window shown at launch when permission is missing, `Permissions.swift` wraps `AXIsProcessTrusted` + 1 Hz async poller, menu bar icon reflects live status (`pencil.tip` / `exclamationmark.triangle.fill`), menu exposes a re-open shortcut on revocation.
 - Initial Xcode project (macOS app, Swift 6, SwiftUI).
 - Menu bar app shell via `MenuBarExtra` (placeholder icon, quit).
 - `LSUIElement = YES` (no Dock icon, no app switcher entry).
