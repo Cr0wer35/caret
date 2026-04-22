@@ -49,9 +49,50 @@ struct DebugOverlay: View {
                 row("reason", fire.reason.rawValue)
                 row("at", Self.fireTimeFormatter.string(from: fire.at))
             }
+
+            if let correction = coordinator.lastCorrection {
+                Divider()
+                Text("Correction")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                correctionBody(correction)
+            }
         }
         .padding(12)
         .frame(width: 360)
+    }
+
+    @ViewBuilder
+    private func correctionBody(_ state: CorrectionState) -> some View {
+        switch state {
+        case .pending:
+            row("status", "calling LLM…")
+        case .streaming(let accumulated):
+            row("status", "streaming")
+            ScrollView {
+                Text(accumulated)
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
+            .frame(height: 80)
+            .background(Color(nsColor: .textBackgroundColor))
+            .cornerRadius(4)
+        case .completed(let response):
+            row("status", "done")
+            row("shouldFix", String(response.shouldCorrect))
+            if response.shouldCorrect {
+                row("span", "\(response.spanStart)..\(response.spanEnd)")
+                row("replace", response.corrected)
+            }
+        case .failed(let message):
+            row("status", "error")
+                .foregroundStyle(.red)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private static let fireTimeFormatter: DateFormatter = {
