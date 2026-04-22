@@ -11,7 +11,16 @@ struct DebugOverlay: View {
             Text("Caret — Debug")
                 .font(.headline)
 
-            if let ctx = coordinator.lastContext {
+            if let bundle = coordinator.lastBlocked {
+                Text("Blocked")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.red)
+                row("bundle", bundle)
+                Text("No AX read, no LLM call. This app is on the privacy denylist.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if let ctx = coordinator.lastContext {
                 row("bundle", ctx.bundleID ?? "—")
                 row("cursor", "\(ctx.cursorRange.location)+\(ctx.cursorRange.length)")
                 row("rect", ctx.caretScreenRect.map { String(describing: $0) } ?? "—")
