@@ -1,0 +1,50 @@
+import SwiftUI
+
+/// Dev-only floating view. Shows the most recent `FocusedContext` emitted
+/// by the input tap, updated in real time via the coordinator's
+/// `@Published` snapshot.
+struct DebugOverlay: View {
+    @ObservedObject var coordinator: InputCoordinator
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Caret — Debug")
+                .font(.headline)
+
+            if let ctx = coordinator.lastContext {
+                row("bundle", ctx.bundleID ?? "—")
+                row("cursor", "\(ctx.cursorRange.location)+\(ctx.cursorRange.length)")
+                row("rect", ctx.caretScreenRect.map { String(describing: $0) } ?? "—")
+
+                Divider()
+
+                ScrollView {
+                    Text(ctx.text.isEmpty ? "(empty)" : ctx.text)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+                .frame(height: 140)
+                .background(Color(nsColor: .textBackgroundColor))
+                .cornerRadius(4)
+            } else {
+                Text("Waiting for input…")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .frame(width: 360)
+    }
+
+    private func row(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 50, alignment: .leading)
+            Text(value)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+        }
+    }
+}

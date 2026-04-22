@@ -10,7 +10,7 @@ struct CaretApp: App {
             MenuContent(
                 permissions: appDelegate.permissions,
                 onReopenOnboarding: { appDelegate.reopenOnboarding() },
-                onDebugCapture: { appDelegate.performDebugCapture() }
+                onToggleDebugOverlay: { appDelegate.toggleDebugOverlay() }
             )
         } label: {
             MenuBarLabel(permissions: appDelegate.permissions)
@@ -37,7 +37,7 @@ private struct MenuBarLabel: View {
 private struct MenuContent: View {
     @ObservedObject var permissions: PermissionsMonitor
     let onReopenOnboarding: () -> Void
-    let onDebugCapture: () -> Void
+    let onToggleDebugOverlay: () -> Void
 
     var body: some View {
         Text("Caret — v0.1.0-dev")
@@ -49,8 +49,8 @@ private struct MenuContent: View {
         case .granted:
             Text("Accessibility: enabled")
                 .foregroundStyle(.secondary)
-            Button("Capture focused text", action: onDebugCapture)
-                .keyboardShortcut("c", modifiers: [.command, .option])
+            Button("Toggle debug overlay", action: onToggleDebugOverlay)
+                .keyboardShortcut("d", modifiers: [.command, .option])
         case .denied:
             Button("Enable Accessibility…", action: onReopenOnboarding)
         }
