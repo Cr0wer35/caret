@@ -54,3 +54,7 @@ secrets/
 
 # Logs
 *.log
+
+# AI assistants local state
+.claude/
+.serena/
