@@ -4,8 +4,10 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let permissions = PermissionsMonitor()
     let textCapture = TextCapture()
+    let providerStore = ProviderStore()
     lazy var inputCoordinator = InputCoordinator(textCapture: textCapture)
     lazy var debugOverlay = DebugOverlayWindowController(coordinator: inputCoordinator)
+    lazy var settingsController = SettingsWindowController(store: providerStore)
     private var onboardingController: OnboardingWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -26,5 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func toggleDebugOverlay() {
         debugOverlay.toggle()
+    }
+
+    func showSettings() {
+        settingsController.show()
     }
 }
