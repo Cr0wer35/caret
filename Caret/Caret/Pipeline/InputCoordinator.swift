@@ -22,6 +22,8 @@ final class InputCoordinator: ObservableObject {
     @Published private(set) var lastCorrection: CorrectionState?
     private let textCapture: TextCapture
     private let providerStore: ProviderStore
+    private let correctionCache = CorrectionCache()
+    private let rateLimiter = RateLimiter()
     private var inflightCorrection: Task<Void, Never>?
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -93,45 +95,80 @@ final class InputCoordinator: ObservableObject {
         let config = providerStore.config
         guard let apiKey = providerStore.apiKey(for: config.provider) else {
             lastCorrection = .failed("No API key set for \(config.provider.displayName)")
-            Log.capture.error("correction skipped: no API key for \(config.provider.rawValue, privacy: .public)")
+            Log.capture.error("correction skipped: no API key")
+            return
+        }
+
+        let cacheKey = CorrectionCache.key(
+            provider: "\(config.provider.rawValue)+\(CorrectionPrompt.version)",
+            model: config.model,
+            text: fire.context.text
+        )
+
+        inflightCorrection = Task { @MainActor [weak self] in
+            await self?.runCorrection(
+                context: fire.context,
+                config: config,
+                apiKey: apiKey,
+                cacheKey: cacheKey
+            )
+        }
+    }
+
+    private func runCorrection(
+        context: FocusedContext,
+        config: ProviderConfig,
+        apiKey: String,
+        cacheKey: String
+    ) async {
+        if let cached = await correctionCache.get(cacheKey) {
+            lastCorrection = .completed(cached)
+            Log.capture.notice("correction cache hit")
+            return
+        }
+
+        do {
+            try await rateLimiter.take()
+        } catch {
+            failCorrection(with: error, prefix: "blocked")
             return
         }
 
         let provider = Self.makeProvider(for: config.provider)
-        let prompt = CorrectionPrompt.v1
-        let context = fire.context
-
-        inflightCorrection = Task { @MainActor [weak self] in
-            var accumulated = ""
-            do {
-                for try await event in provider.correct(
-                    context: context,
-                    config: config,
-                    apiKey: apiKey,
-                    systemPrompt: prompt
-                ) {
-                    try Task.checkCancellation()
-                    switch event {
-                    case .delta(let text):
-                        accumulated += text
-                        self?.lastCorrection = .streaming(accumulated)
-                    case .completed(let response):
-                        self?.lastCorrection = .completed(response)
-                        Log.capture.notice(
-                            "correction completed shouldCorrect=\(response.shouldCorrect, privacy: .public)"
-                        )
-                    }
+        var accumulated = ""
+        do {
+            for try await event in provider.correct(
+                context: context,
+                config: config,
+                apiKey: apiKey,
+                systemPrompt: CorrectionPrompt.v1
+            ) {
+                try Task.checkCancellation()
+                switch event {
+                case .delta(let text):
+                    accumulated += text
+                    lastCorrection = .streaming(accumulated)
+                case .completed(let response):
+                    lastCorrection = .completed(response)
+                    await correctionCache.set(cacheKey, response)
+                    Log.capture.notice(
+                        "correction completed shouldCorrect=\(response.shouldCorrect, privacy: .public)"
+                    )
                 }
-            } catch is CancellationError {
-                // Superseded by a newer fire — leave state as-is.
-            } catch let error as LLMError where error == .cancelled {
-                // Provider surfaced the cancellation itself.
-            } catch {
-                let message = String(describing: error)
-                self?.lastCorrection = .failed(message)
-                Log.capture.error("correction failed: \(message, privacy: .public)")
             }
+        } catch is CancellationError {
+            // Superseded by a newer fire — leave state as-is.
+        } catch let error as LLMError where error == .cancelled {
+            // Provider surfaced the cancellation itself.
+        } catch {
+            failCorrection(with: error, prefix: "failed")
         }
+    }
+
+    private func failCorrection(with error: Error, prefix: String) {
+        let llm = (error as? LLMError) ?? .malformedResponse(String(describing: error))
+        lastCorrection = .failed(llm.userDescription)
+        Log.capture.error("correction \(prefix, privacy: .public): \(llm.userDescription, privacy: .public)")
     }
 
     private static func makeProvider(for kind: Provider) -> any LLMProvider {
