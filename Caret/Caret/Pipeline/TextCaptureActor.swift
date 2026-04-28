@@ -44,10 +44,7 @@ actor TextCapture {
             AXHelpers.range(kAXSelectedTextRangeAttribute, of: element)
             ?? NSRange(location: text.utf16.count, length: 0)
 
-        let caretRect = AXHelpers.bounds(
-            for: NSRange(location: cursor.location, length: max(1, cursor.length)),
-            in: element
-        )
+        let caretRect = Self.caretBounds(for: cursor, in: element, textLength: text.utf16.count)
 
         return .captured(
             FocusedContext(
@@ -57,5 +54,32 @@ actor TextCapture {
                 bundleID: bundleID
             )
         )
+    }
+
+    /// Computes a usable rect for the caret. AX rejects ranges past
+    /// the end of text, so when the cursor sits at the very end we
+    /// fall back to the last visible character.
+    private static func caretBounds(
+        for cursor: NSRange,
+        in element: AXUIElement,
+        textLength: Int
+    ) -> CGRect? {
+        if cursor.length > 0 {
+            return AXHelpers.bounds(for: cursor, in: element)
+        }
+        if cursor.location < textLength {
+            let forward = AXHelpers.bounds(
+                for: NSRange(location: cursor.location, length: 1),
+                in: element
+            )
+            if let forward { return forward }
+        }
+        if cursor.location > 0 {
+            return AXHelpers.bounds(
+                for: NSRange(location: cursor.location - 1, length: 1),
+                in: element
+            )
+        }
+        return nil
     }
 }

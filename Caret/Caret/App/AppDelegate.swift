@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     lazy var debugOverlay = DebugOverlayWindowController(coordinator: inputCoordinator)
     lazy var settingsController = SettingsWindowController(store: providerStore)
+    lazy var suggestionPanel = SuggestionPanelController(coordinator: inputCoordinator)
     private var onboardingController: OnboardingWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -23,6 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if permissions.status == .granted {
             inputCoordinator.start()
         }
+
+        suggestionPanel.start()
     }
 
     func reopenOnboarding() {
