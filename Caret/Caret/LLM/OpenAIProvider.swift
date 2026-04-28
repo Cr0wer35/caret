@@ -33,7 +33,7 @@ struct OpenAIProvider: LLMProvider {
                     }
                     guard http.statusCode == 200 else {
                         let body = try await HTTPBody.read(bytes, maxBytes: 4096)
-                        throw LLMError.malformedResponse("HTTP \(http.statusCode): \(body)")
+                        throw LLMError.fromHTTPStatus(http.statusCode, body: body)
                     }
 
                     var accumulated = ""
@@ -60,10 +60,8 @@ struct OpenAIProvider: LLMProvider {
                     let decoded = try Self.decodeResponse(accumulated)
                     continuation.yield(.completed(decoded))
                     continuation.finish()
-                } catch is CancellationError {
-                    continuation.finish(throwing: LLMError.cancelled)
                 } catch {
-                    continuation.finish(throwing: error)
+                    continuation.finish(throwing: LLMError.translate(error))
                 }
             }
             continuation.onTermination = { _ in task.cancel() }
