@@ -8,6 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let pauseState = PauseState()
     let pauseShortcutStore = PauseShortcutStore()
     let dailyCounter = DailyCounter()
+    let denylistStore = DenylistStore()
+    let loginItem = LoginItemController()
+    lazy var connectionTester = ConnectionTester(store: providerStore)
     lazy var globalShortcutMonitor = GlobalShortcutMonitor(
         store: pauseShortcutStore,
         onTrigger: { [weak self] in self?.pauseState.toggle() }
@@ -19,8 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     lazy var debugOverlay = DebugOverlayWindowController(coordinator: inputCoordinator)
     lazy var settingsController = SettingsWindowController(
-        store: providerStore,
-        shortcutStore: pauseShortcutStore
+        providerStore: providerStore,
+        shortcutStore: pauseShortcutStore,
+        denylistStore: denylistStore,
+        loginItem: loginItem,
+        connectionTester: connectionTester
     )
     lazy var suggestionPanel = SuggestionPanelController(
         coordinator: inputCoordinator,
