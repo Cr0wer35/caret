@@ -12,7 +12,20 @@ nonisolated struct Denylist: Sendable, Equatable {
         bundleIDs.contains(bundleID)
     }
 
-    /// Hardcoded defaults. Extend via M7 settings UI, not by editing here.
+    /// `UserDefaults` key shared with `DenylistStore`. Read from
+    /// anywhere via `Denylist.current()`.
+    static let storageKey = "caret.denylist"
+
+    /// Snapshot of the current persisted list, falling back to
+    /// `.default` when the key is missing or empty. Thread-safe —
+    /// `UserDefaults` reads are safe from any actor.
+    static func current(defaults: UserDefaults = .standard) -> Denylist {
+        let stored = defaults.stringArray(forKey: storageKey) ?? []
+        let set = Set(stored)
+        return set.isEmpty ? .default : Denylist(bundleIDs: set)
+    }
+
+    /// Hardcoded defaults. Extend via Settings → Privacy, not by editing here.
     static let `default` = Denylist(bundleIDs: [
         // Password managers
         "com.1password.1password",

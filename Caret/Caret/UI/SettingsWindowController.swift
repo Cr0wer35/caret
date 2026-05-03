@@ -6,20 +6,34 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController {
     private var window: NSWindow?
-    private let store: ProviderStore
+    private let providerStore: ProviderStore
     private let shortcutStore: PauseShortcutStore
+    private let denylistStore: DenylistStore
+    private let loginItem: LoginItemController
+    private let connectionTester: ConnectionTester
 
-    init(store: ProviderStore, shortcutStore: PauseShortcutStore) {
-        self.store = store
+    init(
+        providerStore: ProviderStore,
+        shortcutStore: PauseShortcutStore,
+        denylistStore: DenylistStore,
+        loginItem: LoginItemController,
+        connectionTester: ConnectionTester
+    ) {
+        self.providerStore = providerStore
         self.shortcutStore = shortcutStore
+        self.denylistStore = denylistStore
+        self.loginItem = loginItem
+        self.connectionTester = connectionTester
     }
 
     func show() {
         if window == nil {
             let root = SettingsView(
-                store: store,
+                providerStore: providerStore,
                 shortcutStore: shortcutStore,
-                onClose: { [weak self] in self?.close() }
+                denylistStore: denylistStore,
+                loginItem: loginItem,
+                connectionTester: connectionTester
             )
             let hosting = NSHostingController(rootView: root)
             let window = NSWindow(contentViewController: hosting)

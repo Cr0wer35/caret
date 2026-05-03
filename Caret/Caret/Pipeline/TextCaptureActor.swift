@@ -21,18 +21,12 @@ enum CaptureOutcome: Sendable, Equatable {
 /// Reads the focused text field via AX. Runs on its own actor so the
 /// synchronous AX IPC calls never block the main thread.
 actor TextCapture {
-    let denylist: Denylist
-
-    init(denylist: Denylist = .default) {
-        self.denylist = denylist
-    }
-
     func capture() -> CaptureOutcome {
         guard let element = AXHelpers.focusedElement() else { return .unavailable }
         guard !AXHelpers.isSecure(element) else { return .unavailable }
 
         let bundleID = AXHelpers.bundleID(of: element)
-        if let bundleID, denylist.contains(bundleID) {
+        if let bundleID, Denylist.current().contains(bundleID) {
             return .blocked(bundleID: bundleID)
         }
 
