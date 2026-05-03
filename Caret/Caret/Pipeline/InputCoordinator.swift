@@ -19,6 +19,7 @@ final class InputCoordinator: ObservableObject {
     @Published private(set) var lastContext: FocusedContext?
     @Published private(set) var lastBlocked: String?
     @Published private(set) var lastFire: TriggerFire?
+    @Published private(set) var lastBlock: TextBlock?
     @Published private(set) var lastCorrection: CorrectionState?
     nonisolated let acceptArmed = AcceptArmedFlag()
     let acceptRequests = PassthroughSubject<Void, Never>()
@@ -101,6 +102,19 @@ final class InputCoordinator: ObservableObject {
 
     private func startCorrection(for fire: TriggerFire) {
         inflightCorrection?.cancel()
+
+        guard
+            let block = BlockExtractor.extract(
+                from: fire.context.text,
+                cursor: fire.context.cursorRange.location
+            )
+        else {
+            lastBlock = nil
+            lastCorrection = nil
+            Log.capture.notice("block too large or empty, skipping fire")
+            return
+        }
+        lastBlock = block
         lastCorrection = .pending
 
         let config = providerStore.config
@@ -113,12 +127,13 @@ final class InputCoordinator: ObservableObject {
         let cacheKey = CorrectionCache.key(
             provider: "\(config.provider.rawValue)+\(CorrectionPrompt.version)",
             model: config.model,
-            text: fire.context.text
+            text: block.text
         )
 
         inflightCorrection = Task { @MainActor [weak self] in
             await self?.runCorrection(
                 context: fire.context,
+                block: block,
                 config: config,
                 apiKey: apiKey,
                 cacheKey: cacheKey
@@ -128,6 +143,7 @@ final class InputCoordinator: ObservableObject {
 
     private func runCorrection(
         context: FocusedContext,
+        block: TextBlock,
         config: ProviderConfig,
         apiKey: String,
         cacheKey: String
@@ -146,10 +162,17 @@ final class InputCoordinator: ObservableObject {
         }
 
         let provider = Self.makeProvider(for: config.provider)
+        let blockContext = FocusedContext(
+            text: block.text,
+            cursorRange: NSRange(location: 0, length: 0),
+            caretScreenRect: context.caretScreenRect,
+            bundleID: context.bundleID
+        )
+
         var accumulated = ""
         do {
             for try await event in provider.correct(
-                context: context,
+                context: blockContext,
                 config: config,
                 apiKey: apiKey,
                 systemPrompt: CorrectionPrompt.v1
@@ -165,8 +188,7 @@ final class InputCoordinator: ObservableObject {
                     Log.capture.notice(
                         """
                         correction completed shouldCorrect=\(response.shouldCorrect, privacy: .public) \
-                        original='\(response.original, privacy: .public)' \
-                        corrected='\(response.corrected, privacy: .public)'
+                        chars=\(response.corrected.count, privacy: .public)
                         """
                     )
                 }

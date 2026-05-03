@@ -15,10 +15,17 @@ final class SuggestionPanelController {
     private let toast = ToastNotifier()
     private var panel: SuggestionPanel?
     private var hostingView: NSHostingView<SuggestionView>?
-    /// The exact text the LLM saw when the visible suggestion was produced.
-    /// Used to dismiss the panel as soon as the user diverges from it.
-    private var anchoredText: String?
-    private var activeAccept: (fire: TriggerFire, response: CorrectionResponse)?
+    /// The exact block text the LLM saw when the visible suggestion
+    /// was produced. Used to dismiss the panel as soon as the block
+    /// at the cursor diverges from it.
+    private var anchoredBlock: TextBlock?
+    private var activeAccept: ActiveAccept?
+
+    private struct ActiveAccept {
+        let fire: TriggerFire
+        let block: TextBlock
+        let response: CorrectionResponse
+    }
     private var cancellables: Set<AnyCancellable> = []
 
     init(coordinator: InputCoordinator, pauseState: PauseState, dailyCounter: DailyCounter) {
@@ -61,21 +68,34 @@ final class SuggestionPanelController {
             response.shouldCorrect,
             !response.corrected.isEmpty,
             let fire = coordinator.lastFire,
-            let context = coordinator.lastContext,
-            context.text == fire.context.text
+            let block = coordinator.lastBlock,
+            currentBlockMatches(block)
         else {
             hide()
             return
         }
-        anchoredText = fire.context.text
-        activeAccept = (fire: fire, response: response)
+        anchoredBlock = block
+        activeAccept = ActiveAccept(fire: fire, block: block, response: response)
         present(corrected: response.corrected, caretRect: fire.context.caretScreenRect)
     }
 
     private func handle(context: FocusedContext?) {
-        guard let anchored = anchoredText else { return }
-        if let context, context.text == anchored { return }
+        guard let anchored = anchoredBlock else { return }
+        if currentBlockMatches(anchored) { return }
         hide()
+    }
+
+    /// True when the block sitting under the user's cursor right now
+    /// still matches the block we sent to the LLM.
+    private func currentBlockMatches(_ anchored: TextBlock) -> Bool {
+        guard let context = coordinator.lastContext else { return false }
+        guard
+            let current = BlockExtractor.extract(
+                from: context.text,
+                cursor: context.cursorRange.location
+            )
+        else { return false }
+        return current.text == anchored.text
     }
 
     private func present(corrected: String, caretRect: CGRect?) {
@@ -92,16 +112,16 @@ final class SuggestionPanelController {
 
     private func hide() {
         coordinator.acceptArmed.disarm()
-        anchoredText = nil
+        anchoredBlock = nil
         activeAccept = nil
         panel?.orderOut(nil)
     }
 
-    /// Applies the visible suggestion via AX. Step 3 will fall back to
-    /// the pasteboard when AX setValue fails (Electron / web apps).
+    /// Replaces the live block under the cursor with the LLM's
+    /// corrected version. Falls back to a manual-paste toast when
+    /// `setRange` is refused.
     private func accept() {
         guard let active = activeAccept else { return }
-        let response = active.response
 
         guard
             let element = AXHelpers.focusedElement(),
@@ -113,29 +133,34 @@ final class SuggestionPanelController {
             return
         }
 
+        // Re-resolve the block range at accept time — the user may
+        // have typed elsewhere in the doc and shifted offsets.
         guard
-            let span = Self.findSpan(
-                of: response.original,
-                in: active.fire.context.text,
-                near: active.fire.context.cursorRange.location
-            )
+            let context = coordinator.lastContext,
+            let liveBlock = BlockExtractor.extract(
+                from: context.text,
+                cursor: context.cursorRange.location
+            ),
+            liveBlock.text == active.block.text
         else {
-            Log.capture.notice("accept aborted: original not found in text")
+            Log.capture.notice("accept aborted: block diverged before accept")
             hide()
             return
         }
 
         guard
-            AXHelpers.setRange(span, attribute: kAXSelectedTextRangeAttribute, of: element)
+            AXHelpers.setRange(
+                liveBlock.range, attribute: kAXSelectedTextRangeAttribute, of: element
+            )
         else {
             Log.capture.notice("accept: setRange refused, copy to pasteboard for manual paste")
-            copyToPasteboardOnly(response.corrected)
+            copyToPasteboardOnly(active.response.corrected)
             toast.show("Copied — paste with ⌘V")
             hide()
             return
         }
 
-        Self.replaceSelection(with: response.corrected)
+        Self.replaceSelection(with: active.response.corrected)
         dailyCounter.increment()
         Log.capture.notice("accept ok (paste)")
         hide()
@@ -173,29 +198,6 @@ final class SuggestionPanelController {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
-    }
-
-    /// Finds `needle` inside `haystack` and returns the UTF-16 range of
-    /// the occurrence closest to `cursor`. Nil if `needle` is empty or
-    /// not found.
-    private static func findSpan(
-        of needle: String,
-        in haystack: String,
-        near cursor: Int
-    ) -> NSRange? {
-        guard !needle.isEmpty else { return nil }
-        let nsHaystack = haystack as NSString
-        var ranges: [NSRange] = []
-        var searchRange = NSRange(location: 0, length: nsHaystack.length)
-        while searchRange.location < nsHaystack.length {
-            let found = nsHaystack.range(of: needle, options: [], range: searchRange)
-            if found.location == NSNotFound { break }
-            ranges.append(found)
-            searchRange.location = found.location + max(found.length, 1)
-            searchRange.length = nsHaystack.length - searchRange.location
-        }
-        guard !ranges.isEmpty else { return nil }
-        return ranges.min(by: { abs($0.location - cursor) < abs($1.location - cursor) })
     }
 
     private func ensurePanel() -> SuggestionPanel {

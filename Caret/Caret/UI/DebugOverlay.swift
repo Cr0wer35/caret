@@ -82,8 +82,16 @@ struct DebugOverlay: View {
             row("status", "done")
             row("shouldFix", String(response.shouldCorrect))
             if response.shouldCorrect {
-                row("original", response.original)
-                row("replace", response.corrected)
+                row("chars", String(response.corrected.count))
+                ScrollView {
+                    Text(response.corrected)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+                .frame(height: 80)
+                .background(Color(nsColor: .textBackgroundColor))
+                .cornerRadius(4)
             }
         case .failed(let message):
             row("status", "error")

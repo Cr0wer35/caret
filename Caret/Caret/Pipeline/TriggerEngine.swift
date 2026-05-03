@@ -34,8 +34,8 @@ actor TriggerEngine {
     private let onFire: @Sendable (TriggerFire) -> Void
 
     init(
-        idleThreshold: Duration = .milliseconds(400),
-        newWordsThreshold: Int = 3,
+        idleThreshold: Duration = .milliseconds(1200),
+        newWordsThreshold: Int = 5,
         onFire: @escaping @Sendable (TriggerFire) -> Void
     ) {
         self.idleThreshold = idleThreshold

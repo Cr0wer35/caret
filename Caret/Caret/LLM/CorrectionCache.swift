@@ -23,9 +23,9 @@ actor CorrectionCache {
         self.ttl = ttl
     }
 
-    func get(_ key: String, now: Date = Date()) -> CorrectionResponse? {
+    func get(_ key: String) -> CorrectionResponse? {
         guard let entry = entries[key] else { return nil }
-        if now.timeIntervalSince(entry.storedAt) > ttl {
+        if Date().timeIntervalSince(entry.storedAt) > ttl {
             entries.removeValue(forKey: key)
             accessOrder.removeAll { $0 == key }
             return nil
@@ -35,8 +35,8 @@ actor CorrectionCache {
         return entry.response
     }
 
-    func set(_ key: String, _ response: CorrectionResponse, now: Date = Date()) {
-        entries[key] = Entry(response: response, storedAt: now)
+    func set(_ key: String, _ response: CorrectionResponse) {
+        entries[key] = Entry(response: response, storedAt: Date())
         accessOrder.removeAll { $0 == key }
         accessOrder.append(key)
         while accessOrder.count > maxEntries {
