@@ -82,7 +82,7 @@ struct DebugOverlay: View {
             row("status", "done")
             row("shouldFix", String(response.shouldCorrect))
             if response.shouldCorrect {
-                row("span", "\(response.spanStart)..\(response.spanEnd)")
+                row("original", response.original)
                 row("replace", response.corrected)
             }
         case .failed(let message):

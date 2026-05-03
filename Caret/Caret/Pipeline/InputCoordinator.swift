@@ -20,6 +20,8 @@ final class InputCoordinator: ObservableObject {
     @Published private(set) var lastBlocked: String?
     @Published private(set) var lastFire: TriggerFire?
     @Published private(set) var lastCorrection: CorrectionState?
+    nonisolated let acceptArmed = AcceptArmedFlag()
+    let acceptRequests = PassthroughSubject<Void, Never>()
     private let textCapture: TextCapture
     private let providerStore: ProviderStore
     private let correctionCache = CorrectionCache()
@@ -48,7 +50,9 @@ final class InputCoordinator: ObservableObject {
 
     func start() {
         guard tap == nil else { return }
-        let mask = CGEventMask(1 << CGEventType.keyUp.rawValue)
+        let mask = CGEventMask(
+            (1 << CGEventType.keyUp.rawValue) | (1 << CGEventType.keyDown.rawValue)
+        )
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         guard
             let createdTap = CGEvent.tapCreate(
@@ -56,7 +60,7 @@ final class InputCoordinator: ObservableObject {
                 place: .headInsertEventTap,
                 options: .defaultTap,
                 eventsOfInterest: mask,
-                callback: inputCoordinatorCallback,
+                callback: InputCallback.cFn,
                 userInfo: refcon
             )
         else {
@@ -86,6 +90,11 @@ final class InputCoordinator: ObservableObject {
         guard let tap else { return }
         CGEvent.tapEnable(tap: tap, enable: true)
         Log.capture.notice("input event tap re-enabled after system disable")
+    }
+
+    fileprivate func handleTabAccept() {
+        Log.capture.notice("tab intercepted (accept armed)")
+        acceptRequests.send()
     }
 
     private func startCorrection(for fire: TriggerFire) {
@@ -152,7 +161,11 @@ final class InputCoordinator: ObservableObject {
                     lastCorrection = .completed(response)
                     await correctionCache.set(cacheKey, response)
                     Log.capture.notice(
-                        "correction completed shouldCorrect=\(response.shouldCorrect, privacy: .public)"
+                        """
+                        correction completed shouldCorrect=\(response.shouldCorrect, privacy: .public) \
+                        original='\(response.original, privacy: .public)' \
+                        corrected='\(response.corrected, privacy: .public)'
+                        """
                     )
                 }
             }
@@ -205,20 +218,42 @@ final class InputCoordinator: ObservableObject {
     }
 }
 
-/// C-convention callback invoked by the event tap on the main run loop.
-/// File-scope so it carries no Swift-level captures.
-private nonisolated(unsafe) let inputCoordinatorCallback: CGEventTapCallBack = { _, type, event, refcon in
-    guard let refcon else { return Unmanaged.passUnretained(event) }
-    let coordinator = Unmanaged<InputCoordinator>.fromOpaque(refcon).takeUnretainedValue()
+/// C-convention callback for the event tap. Wrapped in a `nonisolated`
+/// enum so the closure literal escapes the file's `@MainActor` default
+/// isolation — the callback runs on the main run loop but Swift can't
+/// see that across the C boundary.
+private enum InputCallback {
+    nonisolated(unsafe) static let cFn: CGEventTapCallBack = { @Sendable _, type, event, refcon in
+        guard let refcon else { return Unmanaged.passUnretained(event) }
+        let coordinator = Unmanaged<InputCoordinator>.fromOpaque(refcon).takeUnretainedValue()
 
-    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-        Task { @MainActor in coordinator.reenableTap() }
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            Task { @MainActor in coordinator.reenableTap() }
+            return Unmanaged.passUnretained(event)
+        }
+
+        if type == .keyDown {
+            let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+            let modifierBits =
+                CGEventFlags.maskCommand.rawValue
+                | CGEventFlags.maskAlternate.rawValue
+                | CGEventFlags.maskControl.rawValue
+                | CGEventFlags.maskShift.rawValue
+            let isPlainTab = keyCode == 0x30 && (event.flags.rawValue & modifierBits) == 0
+            if isPlainTab {
+                let armed = coordinator.acceptArmed.isArmed
+                Log.capture.notice("plain tab keyDown armed=\(armed, privacy: .public)")
+                if armed {
+                    Task { @MainActor in coordinator.handleTabAccept() }
+                    return nil
+                }
+            }
+        }
+
+        if type == .keyUp {
+            Task { @MainActor in coordinator.handleKeyUp() }
+        }
+
         return Unmanaged.passUnretained(event)
     }
-
-    if type == .keyUp {
-        Task { @MainActor in coordinator.handleKeyUp() }
-    }
-
-    return Unmanaged.passUnretained(event)
 }

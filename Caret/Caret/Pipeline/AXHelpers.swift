@@ -49,6 +49,39 @@ nonisolated enum AXHelpers {
         return NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
     }
 
+    /// Screen-space frame of the element (top-left origin, AX coords).
+    /// Combines `kAXPositionAttribute` and `kAXSizeAttribute`.
+    static func frame(of element: AXUIElement) -> CGRect? {
+        guard
+            let posValue = copyAttribute(
+                of: element, named: kAXPositionAttribute, type: AXValue.self
+            ),
+            let sizeValue = copyAttribute(
+                of: element, named: kAXSizeAttribute, type: AXValue.self
+            )
+        else { return nil }
+        var origin = CGPoint.zero
+        var size = CGSize.zero
+        guard
+            AXValueGetValue(posValue, .cgPoint, &origin),
+            AXValueGetValue(sizeValue, .cgSize, &size)
+        else { return nil }
+        return CGRect(origin: origin, size: size)
+    }
+
+    @discardableResult
+    static func setString(_ value: String, attribute: String, of element: AXUIElement) -> Bool {
+        AXUIElementSetAttributeValue(element, attribute as CFString, value as CFString)
+            == .success
+    }
+
+    @discardableResult
+    static func setRange(_ range: NSRange, attribute: String, of element: AXUIElement) -> Bool {
+        var cfRange = CFRange(location: range.location, length: range.length)
+        guard let axValue = AXValueCreate(.cfRange, &cfRange) else { return false }
+        return AXUIElementSetAttributeValue(element, attribute as CFString, axValue) == .success
+    }
+
     static func isSecure(_ element: AXUIElement) -> Bool {
         string(kAXSubroleAttribute, of: element) == (kAXSecureTextFieldSubrole as String)
     }
