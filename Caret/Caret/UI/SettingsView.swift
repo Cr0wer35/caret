@@ -5,6 +5,7 @@ import SwiftUI
 /// Keychain via `ProviderStore`; the rest goes to `UserDefaults`.
 struct SettingsView: View {
     @ObservedObject var store: ProviderStore
+    @ObservedObject var shortcutStore: PauseShortcutStore
     var onClose: () -> Void = {}
 
     @State private var apiKey: String = ""
@@ -41,6 +42,12 @@ struct SettingsView: View {
                 labeled("API key") {
                     SecureField("", text: $apiKey)
                         .textFieldStyle(.roundedBorder)
+                }
+
+                Divider()
+
+                labeled("Pause shortcut") {
+                    KeyRecorder(shortcut: $shortcutStore.shortcut)
                 }
             }
 

@@ -24,6 +24,7 @@ final class InputCoordinator: ObservableObject {
     let acceptRequests = PassthroughSubject<Void, Never>()
     private let textCapture: TextCapture
     private let providerStore: ProviderStore
+    private let pauseState: PauseState
     private let correctionCache = CorrectionCache()
     private let rateLimiter = RateLimiter()
     private var inflightCorrection: Task<Void, Never>?
@@ -43,9 +44,10 @@ final class InputCoordinator: ObservableObject {
         }
     }
 
-    init(textCapture: TextCapture, providerStore: ProviderStore) {
+    init(textCapture: TextCapture, providerStore: ProviderStore, pauseState: PauseState) {
         self.textCapture = textCapture
         self.providerStore = providerStore
+        self.pauseState = pauseState
     }
 
     func start() {
@@ -194,6 +196,7 @@ final class InputCoordinator: ObservableObject {
     fileprivate func handleKeyUp() {
         Task { @MainActor [weak self] in
             guard let self else { return }
+            guard !self.pauseState.isPaused else { return }
             let outcome = await self.textCapture.capture()
             switch outcome {
             case .captured(let ctx):

@@ -10,6 +10,8 @@ import os
 @MainActor
 final class SuggestionPanelController {
     private let coordinator: InputCoordinator
+    private let pauseState: PauseState
+    private let dailyCounter: DailyCounter
     private let toast = ToastNotifier()
     private var panel: SuggestionPanel?
     private var hostingView: NSHostingView<SuggestionView>?
@@ -19,8 +21,10 @@ final class SuggestionPanelController {
     private var activeAccept: (fire: TriggerFire, response: CorrectionResponse)?
     private var cancellables: Set<AnyCancellable> = []
 
-    init(coordinator: InputCoordinator) {
+    init(coordinator: InputCoordinator, pauseState: PauseState, dailyCounter: DailyCounter) {
         self.coordinator = coordinator
+        self.pauseState = pauseState
+        self.dailyCounter = dailyCounter
     }
 
     func start() {
@@ -40,6 +44,13 @@ final class SuggestionPanelController {
         coordinator.acceptRequests
             .sink { [weak self] in
                 Task { @MainActor in self?.accept() }
+            }
+            .store(in: &cancellables)
+
+        pauseState.$isPaused
+            .sink { [weak self] paused in
+                guard paused else { return }
+                Task { @MainActor in self?.hide() }
             }
             .store(in: &cancellables)
     }
@@ -125,6 +136,7 @@ final class SuggestionPanelController {
         }
 
         Self.replaceSelection(with: response.corrected)
+        dailyCounter.increment()
         Log.capture.notice("accept ok (paste)")
         hide()
     }

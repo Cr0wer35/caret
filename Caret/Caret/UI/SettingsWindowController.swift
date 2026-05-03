@@ -7,15 +7,18 @@ import SwiftUI
 final class SettingsWindowController {
     private var window: NSWindow?
     private let store: ProviderStore
+    private let shortcutStore: PauseShortcutStore
 
-    init(store: ProviderStore) {
+    init(store: ProviderStore, shortcutStore: PauseShortcutStore) {
         self.store = store
+        self.shortcutStore = shortcutStore
     }
 
     func show() {
         if window == nil {
             let root = SettingsView(
                 store: store,
+                shortcutStore: shortcutStore,
                 onClose: { [weak self] in self?.close() }
             )
             let hosting = NSHostingController(rootView: root)
