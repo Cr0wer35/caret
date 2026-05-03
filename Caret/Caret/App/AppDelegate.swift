@@ -5,13 +5,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let permissions = PermissionsMonitor()
     let textCapture = TextCapture()
     let providerStore = ProviderStore()
+    let pauseState = PauseState()
+    let pauseShortcutStore = PauseShortcutStore()
+    let dailyCounter = DailyCounter()
+    lazy var globalShortcutMonitor = GlobalShortcutMonitor(
+        store: pauseShortcutStore,
+        onTrigger: { [weak self] in self?.pauseState.toggle() }
+    )
     lazy var inputCoordinator = InputCoordinator(
         textCapture: textCapture,
-        providerStore: providerStore
+        providerStore: providerStore,
+        pauseState: pauseState
     )
     lazy var debugOverlay = DebugOverlayWindowController(coordinator: inputCoordinator)
-    lazy var settingsController = SettingsWindowController(store: providerStore)
-    lazy var suggestionPanel = SuggestionPanelController(coordinator: inputCoordinator)
+    lazy var settingsController = SettingsWindowController(
+        store: providerStore,
+        shortcutStore: pauseShortcutStore
+    )
+    lazy var suggestionPanel = SuggestionPanelController(
+        coordinator: inputCoordinator,
+        pauseState: pauseState,
+        dailyCounter: dailyCounter
+    )
     private var onboardingController: OnboardingWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -26,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         suggestionPanel.start()
+        globalShortcutMonitor.start()
     }
 
     func reopenOnboarding() {
